@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat — EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/firebase-init.js"></script>
+<style>
+  .chat-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 8px;
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--text);
+  }
+  .chat-list-item:hover { background: #f8fafc; }
+  .chat-list-item .meta { flex: 1; min-width: 0; }
+  .chat-list-item .name { font-weight: 600; font-size: 14px; }
+  .chat-list-item .preview {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+</style>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+
+<div class="navbar">
+  <div class="brand"><div class="brand-mark">E</div><div class="brand-name">EchoNote</div></div>
+  <nav>
+    <a href="/echonote-home/">Beranda</a>
+    <a href="/chat/" class="active">Chat</a>
+    <a href="/akun/">Profil</a>
+    <button class="logout-btn" id="logoutBtn" type="button">Keluar</button>
+  </nav>
+</div>
+
+<div class="page-body">
+  <div class="card wide-card">
+    <h1>Pesan</h1>
+    <p class="subtitle">Cari teman lewat profilnya lalu tekan "Kirim pesan" untuk mulai chat baru.</p>
+    <div id="list"><p class="subtitle">Memuat...</p></div>
+  </div>
+</div>
+
+<script>
+  function initials(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
+  function avatarHtml(avatarUrl, name) {
+    if (avatarUrl) return `<img class="avatar avatar-sm" src="${avatarUrl}" alt="">`;
+    return `<div class="avatar avatar-sm avatar-placeholder" style="font-size:13px">${initials(name)}</div>`;
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  async function load() {
+    const res = await fetch('/api/chat/list');
+    if (res.status === 401) { window.location.href = '/login/'; return; }
+    const data = await res.json();
+    const list = document.getElementById('list');
+
+    if (!data.chats || data.chats.length === 0) {
+      list.innerHTML = '<p class="subtitle">Belum ada percakapan. Buka profil seseorang dan kirim pesan pertama.</p>';
+      return;
+    }
+
+    list.innerHTML = data.chats.map(c => `
+      <a class="chat-list-item" href="/chat/room/?with=${encodeURIComponent(c.otherUser.username)}">
+        ${avatarHtml(c.otherUser.avatarUrl, c.otherUser.displayName)}
+        <div class="meta">
+          <div class="name">${escapeHtml(c.otherUser.displayName)}</div>
+          <div class="preview">${escapeHtml(c.lastMessage)}</div>
+        </div>
+      </a>
+    `).join('');
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login/';
+  });
+
+  load();
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
