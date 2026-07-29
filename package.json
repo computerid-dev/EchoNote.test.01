@@ -1,0 +1,13 @@
+{
+  "name": "echonote-main",
+  "version": "1.0.0",
+  "description": "EchoNote auth system (manual admin accept/reject + mode auto) - Vercel serverless + Firebase Firestore",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.1.0",
+    "@vercel/edge": "^1.1.1"
+  }
+}
