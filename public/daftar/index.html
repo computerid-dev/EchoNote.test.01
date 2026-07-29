@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daftar — EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/firebase-init.js"></script>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <div class="brand-mark">E</div>
+      <div class="brand-name">EchoNote</div>
+    </div>
+    <h1>Buat akun baru</h1>
+    <p class="subtitle">Permintaan pendaftaranmu akan direview sebelum akun aktif.</p>
+
+    <div id="alertBox"></div>
+
+    <form id="daftarForm">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" required autocomplete="username" placeholder="cth: budi_santoso">
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" name="email" required autocomplete="email" placeholder="nama@email.com">
+      </div>
+      <div class="field">
+        <label for="phone">Nomor telepon (opsional)</label>
+        <input id="phone" name="phone" autocomplete="tel" placeholder="08xx-xxxx-xxxx">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" name="password" required autocomplete="new-password" placeholder="Minimal 6 karakter">
+      </div>
+      <button type="submit" id="submitBtn">Daftar</button>
+    </form>
+
+    <div class="foot-link">Sudah punya akun? <a href="/login/">Masuk di sini</a></div>
+  </div>
+</div>
+<script>
+  const form = document.getElementById('daftarForm');
+  const alertBox = document.getElementById('alertBox');
+  const submitBtn = document.getElementById('submitBtn');
+
+  function showAlert(message, type = 'error') {
+    alertBox.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    alertBox.innerHTML = '';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Memproses...';
+
+    const payload = {
+      username: document.getElementById('username').value.trim(),
+      email: document.getElementById('email').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+      password: document.getElementById('password').value,
+    };
+
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        showAlert(`Server merespons format tak terduga (status ${res.status}). Detail: ${raw.slice(0, 300) || '(kosong)'}`);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Daftar';
+        return;
+      }
+
+      if (!res.ok) {
+        showAlert(data.error || 'Pendaftaran gagal.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Daftar';
+        return;
+      }
+
+      if (data.status === 'pending') {
+        localStorage.setItem('echonote_pending', JSON.stringify({ type: 'daftar', id: data.pendingId }));
+      }
+      window.location.href = data.redirect;
+    } catch (err) {
+      showAlert('Gagal terhubung ke server (' + (err.message || 'network error') + '). Cek koneksi internet kamu lalu coba lagi.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Daftar';
+    }
+  });
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
