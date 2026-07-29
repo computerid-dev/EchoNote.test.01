@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/firebase-init.js"></script>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+<div class="wrap">
+  <div class="card center-text">
+    <div class="brand" style="justify-content:center">
+      <div class="brand-mark">E</div>
+      <div class="brand-name">EchoNote</div>
+    </div>
+    <div class="spinner"></div>
+    <p class="subtitle">Menyiapkan akun kamu...</p>
+  </div>
+</div>
+<script>
+  // Landing sederhana: kalau ada sesi pending di localStorage, arahkan ke halaman pending.
+  // Kalau tidak ada apa-apa, arahkan ke login.
+  const pending = localStorage.getItem('echonote_pending');
+  setTimeout(() => {
+    if (pending) {
+      const { type, id } = JSON.parse(pending);
+      window.location.href = `/pending/?type=${type}&id=${id}`;
+    } else {
+      window.location.href = '/login/';
+    }
+  }, 400);
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
