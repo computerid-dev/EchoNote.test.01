@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akun Saya — EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/firebase-init.js"></script>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+
+<div class="navbar">
+  <div class="brand"><div class="brand-mark">E</div><div class="brand-name">EchoNote</div></div>
+  <nav>
+    <a href="/echonote-home/">Beranda</a>
+    <a href="/chat/">Chat</a>
+    <a href="/akun/" class="active">Profil</a>
+    <button class="logout-btn" id="logoutBtn" type="button">Keluar</button>
+  </nav>
+</div>
+
+<div class="page-body">
+  <div class="card">
+    <h1>Akun saya</h1>
+    <p class="subtitle">Ubah foto profil, nama tampilan, dan bio.</p>
+
+    <div id="alertBox"></div>
+
+    <div style="display:flex;justify-content:center;margin-bottom:20px">
+      <label class="avatar-upload-wrap" title="Ganti foto profil">
+        <div id="avatarPreview"></div>
+        <div class="avatar-edit-badge">✎</div>
+        <input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" style="display:none">
+      </label>
+    </div>
+
+    <form id="profileForm">
+      <div class="field">
+        <label>Username</label>
+        <input id="usernameDisplay" disabled style="background:#f8fafc;color:var(--text-muted)">
+      </div>
+      <div class="field">
+        <label for="displayName">Nama tampilan</label>
+        <input id="displayName" required maxlength="50">
+      </div>
+      <div class="field">
+        <label for="bio">Bio</label>
+        <input id="bio" maxlength="160" placeholder="Ceritakan sedikit tentang kamu">
+      </div>
+      <button type="submit" id="saveBtn">Simpan perubahan</button>
+    </form>
+
+    <div class="foot-link"><a id="viewProfileLink" href="#">Lihat profil publik saya →</a></div>
+  </div>
+</div>
+
+<script>
+  const alertBox = document.getElementById('alertBox');
+  const avatarPreview = document.getElementById('avatarPreview');
+  const avatarInput = document.getElementById('avatarInput');
+  const saveBtn = document.getElementById('saveBtn');
+  let currentUsername = '';
+
+  function showAlert(message, type = 'error') {
+    alertBox.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+  }
+
+  function renderAvatar(avatarUrl, displayName) {
+    if (avatarUrl) {
+      avatarPreview.innerHTML = `<img class="avatar avatar-lg" src="${avatarUrl}" alt="Avatar">`;
+    } else {
+      const letter = (displayName || '?').trim().charAt(0).toUpperCase();
+      avatarPreview.innerHTML = `<div class="avatar avatar-lg avatar-placeholder" style="font-size:32px">${letter}</div>`;
+    }
+  }
+
+  async function loadMe() {
+    const res = await fetch('/api/me');
+    if (!res.ok) {
+      window.location.href = '/login/';
+      return;
+    }
+    const data = await res.json();
+    currentUsername = data.username;
+    document.getElementById('usernameDisplay').value = '@' + data.username;
+    document.getElementById('displayName').value = data.displayName;
+    document.getElementById('bio').value = data.bio;
+    document.getElementById('viewProfileLink').href = `/profil/?u=${encodeURIComponent(data.username)}`;
+    renderAvatar(data.avatarUrl, data.displayName);
+  }
+
+  avatarInput.addEventListener('change', () => {
+    const file = avatarInput.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showAlert('Ukuran gambar maksimal 2MB.');
+      avatarInput.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      avatarPreview.innerHTML = `<img class="avatar avatar-lg" src="${reader.result}" alt="Avatar" style="opacity:0.5">`;
+      const res = await fetch('/api/upload-avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: reader.result }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showAlert(data.error || 'Gagal mengunggah avatar.');
+        loadMe();
+        return;
+      }
+      renderAvatar(data.avatarUrl, document.getElementById('displayName').value);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('profileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    alertBox.innerHTML = '';
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Menyimpan...';
+
+    const res = await fetch('/api/edit-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        displayName: document.getElementById('displayName').value.trim(),
+        bio: document.getElementById('bio').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Simpan perubahan';
+
+    if (!res.ok) {
+      showAlert(data.error || 'Gagal menyimpan.');
+      return;
+    }
+    showAlert('Profil tersimpan.', 'success');
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login/';
+  });
+
+  loadMe();
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
