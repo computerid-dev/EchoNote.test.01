@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beranda — EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .feed-wrap { max-width: 560px; width: 100%; padding: 24px 16px; }
+  .composer-card { padding: 16px; margin-bottom: 20px; }
+  .composer-top { display: flex; gap: 10px; }
+  .composer-top textarea {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+    min-height: 44px;
+  }
+  .composer-top textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
+  .composer-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .media-btn { width: auto; padding: 6px 12px; font-size: 13px; background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); box-shadow: none; }
+  .media-btn:hover { background: #f1f5f9; }
+  .post-submit-btn { width: auto; padding: 8px 20px; }
+  .media-preview { position: relative; margin-top: 10px; }
+  .media-preview img, .media-preview video { width: 100%; border-radius: var(--radius); max-height: 320px; object-fit: cover; }
+  .media-preview .remove-media {
+    position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(15,23,42,0.6); color: #fff; border: none; cursor: pointer; font-size: 14px;
+  }
+
+  .post-card { padding: 16px; margin-bottom: 16px; }
+  .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; min-width: 0; }
+  .post-header .name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .post-header .time { font-size: 12px; color: var(--text-muted); }
+  .post-text { font-size: 14px; line-height: 1.6; margin-bottom: 10px; white-space: pre-wrap; }
+  .post-media img, .post-media video { width: 100%; border-radius: var(--radius); margin-bottom: 10px; max-height: 480px; object-fit: cover; }
+  .post-actions { display: flex; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .post-actions button {
+    width: auto; flex: 1; background: var(--surface); color: var(--text-muted);
+    border: none; box-shadow: none; padding: 8px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .post-actions button:hover { background: #f8fafc; }
+  .post-actions button.liked { color: var(--primary); font-weight: 600; }
+
+  .comments-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; display: none; }
+  .comment-item { display: flex; gap: 8px; margin-bottom: 10px; }
+  .comment-bubble { background: #f1f5f9; border-radius: 12px; padding: 6px 12px; font-size: 13px; }
+  .comment-bubble .cname { font-weight: 600; margin-right: 6px; }
+  .comment-form { display: flex; gap: 8px; margin-top: 8px; }
+  .comment-form input { flex: 1; border-radius: 999px; font-size: 13px; padding: 8px 12px; }
+  .comment-form button { width: auto; padding: 8px 16px; border-radius: 999px; font-size: 13px; }
+
+  .progress-bar { height: 4px; background: var(--border); border-radius: 999px; margin-top: 8px; overflow: hidden; }
+  .progress-bar > div { height: 100%; background: var(--primary); transition: width 0.2s ease; }
+</style>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+
+<div class="navbar">
+  <div class="brand"><div class="brand-mark">E</div><div class="brand-name">EchoNote</div></div>
+  <nav>
+    <a href="/echonote-home/" class="active">Beranda</a>
+    <a href="/chat/">Chat</a>
+    <a href="/akun/">Profil</a>
+    <button class="logout-btn" id="logoutBtn" type="button">Keluar</button>
+  </nav>
+</div>
+
+<div class="page-body" style="align-items:flex-start">
+  <div class="feed-wrap">
+
+    <div class="card composer-card">
+      <div class="composer-top">
+        <textarea id="postText" placeholder="Apa yang kamu pikirkan?" maxlength="1000"></textarea>
+      </div>
+      <div class="media-preview" id="mediaPreview" style="display:none"></div>
+      <div class="progress-bar" id="progressBar" style="display:none"><div id="progressFill" style="width:0%"></div></div>
+      <div id="composerAlert"></div>
+      <div class="composer-actions">
+        <label class="media-btn" style="cursor:pointer">
+          📷 Foto/Video
+          <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none">
+        </label>
+        <button id="postBtn" class="post-submit-btn">Posting</button>
+      </div>
+    </div>
+
+    <div id="feedList"><p class="subtitle center-text">Memuat feed...</p></div>
+    <div class="center-text" style="margin:16px 0">
+      <button id="loadMoreBtn" class="btn-secondary" style="width:auto;padding:8px 20px;display:none">Muat lagi</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { ensureFirebaseSignedIn, storage, auth } from '/firebase-init.js';
+  import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-storage.js";
+
+  const postText = document.getElementById('postText');
+  const mediaInput = document.getElementById('mediaInput');
+  const mediaPreview = document.getElementById('mediaPreview');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  const composerAlert = document.getElementById('composerAlert');
+  const postBtn = document.getElementById('postBtn');
+  const feedList = document.getElementById('feedList');
+  const loadMoreBtn = document.getElementById('loadMoreBtn');
+
+  let selectedFile = null;
+  let nextBefore = null;
+
+  function escapeHtml(str) {
+    return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function initials(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
+  function avatarHtml(url, name, size) {
+    const cls = size === 'sm' ? 'avatar-sm' : 'avatar-sm';
+    if (url) return `<img class="avatar ${cls}" src="${url}">`;
+    return `<div class="avatar ${cls} avatar-placeholder" style="font-size:13px">${initials(name)}</div>`;
+  }
+  function timeAgo(ts) {
+    const diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 60) return 'baru saja';
+    if (diff < 3600) return `${Math.floor(diff / 60)} menit lalu`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} jam lalu`;
+    return `${Math.floor(diff / 86400)} hari lalu`;
+  }
+
+  mediaInput.addEventListener('change', () => {
+    selectedFile = mediaInput.files[0] || null;
+    if (!selectedFile) { mediaPreview.style.display = 'none'; return; }
+
+    if (selectedFile.size > 50 * 1024 * 1024) {
+      composerAlert.innerHTML = '<div class="alert alert-error">Ukuran file maksimal 50MB.</div>';
+      selectedFile = null;
+      mediaInput.value = '';
+      return;
+    }
+
+    const url = URL.createObjectURL(selectedFile);
+    const isVideo = selectedFile.type.startsWith('video/');
+    mediaPreview.style.display = 'block';
+    mediaPreview.innerHTML = `
+      <button class="remove-media" id="removeMediaBtn" type="button">✕</button>
+      ${isVideo ? `<video src="${url}" controls></video>` : `<img src="${url}">`}
+    `;
+    document.getElementById('removeMediaBtn').addEventListener('click', () => {
+      selectedFile = null;
+      mediaInput.value = '';
+      mediaPreview.style.display = 'none';
+      mediaPreview.innerHTML = '';
+    });
+  });
+
+  postBtn.addEventListener('click', async () => {
+    composerAlert.innerHTML = '';
+    const text = postText.value.trim();
+    if (!text && !selectedFile) {
+      composerAlert.innerHTML = '<div class="alert alert-error">Tulis sesuatu atau lampirkan foto/video.</div>';
+      return;
+    }
+
+    postBtn.disabled = true;
+    postBtn.textContent = 'Memposting...';
+
+    try {
+      let type = 'text';
+      let mediaUrl = '';
+
+      if (selectedFile) {
+        type = selectedFile.type.startsWith('video/') ? 'video' : 'photo';
+        await ensureFirebaseSignedIn();
+        const path = `posts/${auth.currentUser.uid}/${Date.now()}_${selectedFile.name}`;
+        const sRef = storageRef(storage, path);
+        const task = uploadBytesResumable(sRef, selectedFile);
+
+        progressBar.style.display = 'block';
+        mediaUrl = await new Promise((resolve, reject) => {
+          task.on('state_changed', (snap) => {
+            const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+            progressFill.style.width = pct + '%';
+          }, reject, async () => {
+            resolve(await getDownloadURL(task.snapshot.ref));
+          });
+        });
+        progressBar.style.display = 'none';
+      }
+
+      const res = await fetch('/api/feed/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, text, mediaUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        composerAlert.innerHTML = `<div class="alert alert-error">${data.error || 'Gagal memposting.'}</div>`;
+        return;
+      }
+
+      postText.value = '';
+      selectedFile = null;
+      mediaInput.value = '';
+      mediaPreview.style.display = 'none';
+      mediaPreview.innerHTML = '';
+      nextBefore = null;
+      feedList.innerHTML = '';
+      loadFeed();
+    } catch (err) {
+      composerAlert.innerHTML = '<div class="alert alert-error">Gagal mengunggah media.</div>';
+      progressBar.style.display = 'none';
+    } finally {
+      postBtn.disabled = false;
+      postBtn.textContent = 'Posting';
+    }
+  });
+
+  function postCardHtml(p) {
+    const mediaHtml = p.mediaUrl
+      ? (p.type === 'video'
+          ? `<div class="post-media"><video src="${p.mediaUrl}" controls></video></div>`
+          : `<div class="post-media"><img src="${p.mediaUrl}"></div>`)
+      : '';
+    return `
+      <div class="card post-card" data-post-id="${p.id}">
+        <div class="post-header">
+          ${avatarHtml(p.author.avatarUrl, p.author.displayName)}
+          <div>
+            <div class="name">${escapeHtml(p.author.displayName)}</div>
+            <div class="time">@${escapeHtml(p.author.username)} · ${timeAgo(p.createdAt)}</div>
+          </div>
+        </div>
+        ${p.text ? `<div class="post-text">${escapeHtml(p.text)}</div>` : ''}
+        ${mediaHtml}
+        <div class="post-actions">
+          <button class="like-btn ${p.likedByMe ? 'liked' : ''}" data-liked="${p.likedByMe}">
+            ${p.likedByMe ? '❤️' : '🤍'} <span class="like-count">${p.likeCount}</span>
+          </button>
+          <button class="comment-toggle-btn">💬 <span class="comment-count">${p.commentCount}</span></button>
+        </div>
+        <div class="comments-section">
+          <div class="comment-list"></div>
+          <form class="comment-form">
+            <input placeholder="Tulis komentar..." maxlength="500">
+            <button type="submit">Kirim</button>
+          </form>
+        </div>
+      </div>`;
+  }
+
+  function bindPostEvents(el, post) {
+    const likeBtn = el.querySelector('.like-btn');
+    likeBtn.addEventListener('click', async () => {
+      const liked = likeBtn.dataset.liked === 'true';
+      likeBtn.disabled = true;
+      const res = await fetch('/api/feed/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id, action: liked ? 'unlike' : 'like' }),
+      });
+      likeBtn.disabled = false;
+      if (res.ok) {
+        const data = await res.json();
+        likeBtn.dataset.liked = data.likedByMe;
+        likeBtn.classList.toggle('liked', data.likedByMe);
+        likeBtn.innerHTML = `${data.likedByMe ? '❤️' : '🤍'} <span class="like-count">${data.likeCount}</span>`;
+      }
+    });
+
+    const commentSection = el.querySelector('.comments-section');
+    const commentList = el.querySelector('.comment-list');
+    const commentToggleBtn = el.querySelector('.comment-toggle-btn');
+    let commentsLoaded = false;
+
+    commentToggleBtn.addEventListener('click', async () => {
+      const isOpen = commentSection.style.display === 'block';
+      commentSection.style.display = isOpen ? 'none' : 'block';
+      if (!isOpen && !commentsLoaded) {
+        commentsLoaded = true;
+        const res = await fetch(`/api/feed/comments?postId=${post.id}`);
+        const data = await res.json();
+        commentList.innerHTML = (data.comments || []).map(c => `
+          <div class="comment-item">
+            ${avatarHtml(c.author.avatarUrl, c.author.displayName)}
+            <div class="comment-bubble"><span class="cname">${escapeHtml(c.author.displayName)}</span>${escapeHtml(c.text)}</div>
+          </div>`).join('') || '<p class="subtitle" style="font-size:12px">Belum ada komentar.</p>';
+      }
+    });
+
+    el.querySelector('.comment-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = e.target.querySelector('input');
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      const res = await fetch('/api/feed/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id, text }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        commentList.innerHTML += `
+          <div class="comment-item">
+            ${avatarHtml(data.comment.author.avatarUrl, data.comment.author.displayName)}
+            <div class="comment-bubble"><span class="cname">${escapeHtml(data.comment.author.displayName)}</span>${escapeHtml(data.comment.text)}</div>
+          </div>`;
+        const countEl = el.querySelector('.comment-count');
+        countEl.textContent = Number(countEl.textContent) + 1;
+      }
+    });
+  }
+
+  async function loadFeed() {
+    const url = nextBefore ? `/api/feed/list?before=${nextBefore}` : '/api/feed/list';
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!res.ok) {
+      feedList.innerHTML = `<div class="alert alert-error">${data.error || 'Gagal memuat feed.'}</div>`;
+      return;
+    }
+
+    if (feedList.querySelector('.subtitle')) feedList.innerHTML = '';
+
+    if (data.posts.length === 0 && !feedList.innerHTML) {
+      feedList.innerHTML = '<p class="subtitle center-text">Belum ada postingan. Jadilah yang pertama!</p>';
+      loadMoreBtn.style.display = 'none';
+      return;
+    }
+
+    data.posts.forEach(p => {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = postCardHtml(p);
+      const el = wrapper.firstElementChild;
+      feedList.appendChild(el);
+      bindPostEvents(el, p);
+    });
+
+    nextBefore = data.nextBefore;
+    loadMoreBtn.style.display = nextBefore ? 'block' : 'none';
+  }
+
+  loadMoreBtn.addEventListener('click', loadFeed);
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login/';
+  });
+
+  loadFeed();
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
