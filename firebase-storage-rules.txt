@@ -1,0 +1,30 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Foto/video post: diupload LANGSUNG dari browser (lihat /feed). Tiap user cuma boleh
+    // nulis ke folder namanya sendiri (uid Firebase, hasil custom token dari sesi kita),
+    // maksimal 50MB per file, dan cuma tipe gambar/video.
+    match /posts/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 50 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*')
+                       || request.resource.contentType.matches('video/.*'));
+    }
+
+    // Avatar tetap lewat server (Admin SDK, endpoint /api/upload-avatar) yang bypass rules ini,
+    // jadi client TIDAK boleh nulis langsung ke sini.
+    match /avatars/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Selain path di atas, tolak semua.
+    match /{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}
