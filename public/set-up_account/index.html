@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lengkapi Profil — EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/firebase-init.js"></script>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <div class="brand-mark">E</div>
+      <div class="brand-name">EchoNote</div>
+    </div>
+    <h1>Selamat datang! 🎉</h1>
+    <p class="subtitle">Akunmu sudah diterima. Lengkapi sedikit profil sebelum mulai.</p>
+
+    <div id="alertBox"></div>
+
+    <form id="setupForm">
+      <div class="field">
+        <label for="displayName">Nama tampilan</label>
+        <input id="displayName" required placeholder="Nama yang akan orang lain lihat">
+      </div>
+      <div class="field">
+        <label for="bio">Bio singkat (opsional)</label>
+        <input id="bio" placeholder="Ceritakan sedikit tentang kamu">
+      </div>
+      <button type="submit" id="submitBtn">Simpan &amp; mulai</button>
+    </form>
+  </div>
+</div>
+<script>
+  const form = document.getElementById('setupForm');
+  const alertBox = document.getElementById('alertBox');
+  const submitBtn = document.getElementById('submitBtn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    alertBox.innerHTML = '';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Menyimpan...';
+
+    try {
+      const res = await fetch('/api/setup-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: document.getElementById('displayName').value.trim(),
+          bio: document.getElementById('bio').value.trim(),
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        alertBox.innerHTML = `<div class="alert alert-error">${data.error || 'Gagal menyimpan profil.'}</div>`;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Simpan & mulai';
+        return;
+      }
+
+      window.location.href = data.redirect;
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-error">Tidak bisa terhubung ke server.</div>`;
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Simpan & mulai';
+    }
+  });
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
