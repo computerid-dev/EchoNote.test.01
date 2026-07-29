@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat — EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .room-wrap {
+    max-width: 560px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 57px - 64px);
+  }
+  .room-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .room-header .name { font-weight: 600; font-size: 14px; }
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .msg {
+    max-width: 75%;
+    padding: 8px 12px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.4;
+    word-wrap: break-word;
+  }
+  .msg.me {
+    align-self: flex-end;
+    background: var(--primary);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.them {
+    align-self: flex-start;
+    background: #f1f5f9;
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
+  .composer {
+    display: flex;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .composer input {
+    flex: 1;
+    border-radius: 999px;
+  }
+  .composer button {
+    width: auto;
+    padding: 10px 20px;
+    border-radius: 999px;
+  }
+</style>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+
+<div class="navbar">
+  <div class="brand"><div class="brand-mark">E</div><div class="brand-name">EchoNote</div></div>
+  <nav>
+    <a href="/echonote-home/">Beranda</a>
+    <a href="/chat/" class="active">Chat</a>
+    <a href="/akun/">Profil</a>
+    <button class="logout-btn" id="logoutBtn" type="button">Keluar</button>
+  </nav>
+</div>
+
+<div style="display:flex;justify-content:center">
+  <div class="room-wrap">
+    <div class="room-header">
+      <a href="/chat/" style="text-decoration:none;color:var(--text-muted);font-size:18px">←</a>
+      <div id="headerAvatar"></div>
+      <div class="name" id="headerName">Menghubungkan...</div>
+    </div>
+    <div class="messages" id="messages"></div>
+    <form class="composer" id="composer">
+      <input id="textInput" placeholder="Ketik pesan..." autocomplete="off" maxlength="2000" disabled>
+      <button type="submit" disabled>Kirim</button>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { ensureFirebaseSignedIn, rtdb, auth } from '/firebase-init.js';
+  import { ref, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+
+  const params = new URLSearchParams(window.location.search);
+  const targetUsername = params.get('with');
+  const messagesEl = document.getElementById('messages');
+  const headerName = document.getElementById('headerName');
+  const headerAvatar = document.getElementById('headerAvatar');
+  const composer = document.getElementById('composer');
+  const textInput = document.getElementById('textInput');
+
+  function initials(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  async function loadProfile() {
+    const res = await fetch(`/api/profile?username=${encodeURIComponent(targetUsername)}`);
+    if (!res.ok) { headerName.textContent = 'Pengguna tidak ditemukan'; return; }
+    const data = await res.json();
+    headerName.textContent = data.displayName;
+    headerAvatar.innerHTML = data.avatarUrl
+      ? `<img class="avatar avatar-sm" src="${data.avatarUrl}">`
+      : `<div class="avatar avatar-sm avatar-placeholder" style="font-size:13px">${initials(data.displayName)}</div>`;
+  }
+
+  function renderAll(messagesObj) {
+    const you = auth.currentUser ? auth.currentUser.uid : null;
+    const list = messagesObj ? Object.values(messagesObj).sort((a, b) => a.createdAt - b.createdAt) : [];
+    messagesEl.innerHTML = list.map(m => `
+      <div class="msg ${m.senderId === you ? 'me' : 'them'}">${escapeHtml(m.text)}</div>
+    `).join('');
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  async function init() {
+    if (!targetUsername) { headerName.textContent = 'Pengguna tidak ditemukan'; return; }
+
+    await loadProfile();
+    await ensureFirebaseSignedIn();
+
+    const idRes = await fetch(`/api/chat/id?with=${encodeURIComponent(targetUsername)}`);
+    if (!idRes.ok) { headerName.textContent = 'Gagal memuat percakapan'; return; }
+    const { chatId } = await idRes.json();
+
+    // Listener real-time: setiap ada pesan baru (dari mana pun, termasuk yang ditulis server
+    // lewat /api/chat/send), callback ini langsung jalan lagi tanpa perlu refresh/polling.
+    onValue(ref(rtdb, `chats/${chatId}/messages`), (snapshot) => {
+      renderAll(snapshot.val());
+    });
+
+    textInput.disabled = false;
+    composer.querySelector('button').disabled = false;
+    textInput.focus();
+  }
+
+  composer.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = textInput.value.trim();
+    if (!text) return;
+    textInput.value = '';
+    textInput.disabled = true;
+
+    const res = await fetch('/api/chat/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUsername, text }),
+    });
+    textInput.disabled = false;
+    textInput.focus();
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Gagal mengirim pesan.');
+    }
+    // Tidak perlu render manual - listener onValue di atas otomatis update begitu server nulis.
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login/';
+  });
+
+  init();
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
