@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profil — EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/firebase-init.js"></script>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+
+<div class="navbar">
+  <div class="brand"><div class="brand-mark">E</div><div class="brand-name">EchoNote</div></div>
+  <nav>
+    <a href="/echonote-home/">Beranda</a>
+    <a href="/chat/">Chat</a>
+    <a href="/akun/" class="active">Profil</a>
+    <button class="logout-btn" id="logoutBtn" type="button">Keluar</button>
+  </nav>
+</div>
+
+<div class="page-body">
+  <div class="card wide-card" id="content">
+    <p class="subtitle">Memuat profil...</p>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const username = params.get('u');
+  const content = document.getElementById('content');
+
+  function initials(name) {
+    return (name || '?').trim().charAt(0).toUpperCase();
+  }
+
+  function avatarHtml(avatarUrl, displayName, size) {
+    const cls = size === 'lg' ? 'avatar-lg' : 'avatar-sm';
+    if (avatarUrl) return `<img class="avatar ${cls}" src="${avatarUrl}" alt="${displayName}">`;
+    return `<div class="avatar ${cls} avatar-placeholder" style="font-size:${size === 'lg' ? '32px' : '14px'}">${initials(displayName)}</div>`;
+  }
+
+  async function load() {
+    if (!username) {
+      content.innerHTML = '<div class="alert alert-error">Username tidak ditemukan di URL. Format: /profil/?u=username</div>';
+      return;
+    }
+
+    const res = await fetch(`/api/profile?username=${encodeURIComponent(username)}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      content.innerHTML = `<div class="alert alert-error">${data.error || 'Gagal memuat profil.'}</div>`;
+      return;
+    }
+
+    const meRes = await fetch('/api/me');
+    const me = meRes.ok ? await meRes.json() : null;
+    const isOwnProfile = me && me.username === data.username;
+
+    let followBtn = '';
+    if (!isOwnProfile && me) {
+      followBtn = `
+        <div class="btn-row" style="margin-top:8px">
+          <button id="followBtn" data-state="unknown" style="width:auto;padding:8px 20px">...</button>
+          <a class="btn-secondary" href="/chat/room/?with=${encodeURIComponent(data.username)}" style="width:auto;padding:8px 20px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">Kirim pesan</a>
+        </div>`;
+    }
+
+    content.innerHTML = `
+      <div class="profile-header">
+        ${avatarHtml(data.avatarUrl, data.displayName, 'lg')}
+        <div>
+          <h1 style="margin-bottom:2px">${escapeHtml(data.displayName)}</h1>
+          <div class="subtitle" style="margin:0">@${escapeHtml(data.username)}</div>
+        </div>
+      </div>
+      ${data.bio ? `<p style="font-size:14px;line-height:1.6">${escapeHtml(data.bio)}</p>` : ''}
+      <div class="profile-stats">
+        <div><strong>${data.postCount}</strong>Postingan</div>
+        <div><strong>${data.followerCount}</strong>Pengikut</div>
+        <div><strong>${data.followingCount}</strong>Mengikuti</div>
+      </div>
+      ${isOwnProfile ? `<a class="btn btn-secondary" href="/akun/" style="display:inline-block;width:auto;padding:8px 20px;text-decoration:none;margin-top:8px">Edit profil</a>` : followBtn}
+    `;
+
+    if (!isOwnProfile && me) {
+      const followBtnEl = document.getElementById('followBtn');
+      const statusRes = await fetch(`/api/follow-status?target=${encodeURIComponent(username)}`);
+      const statusData = statusRes.ok ? await statusRes.json() : { isFollowing: false };
+      renderFollowBtn(followBtnEl, statusData.isFollowing);
+
+      followBtnEl.addEventListener('click', async () => {
+        const following = followBtnEl.dataset.state === 'following';
+        followBtnEl.disabled = true;
+        const r = await fetch('/api/follow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetUsername: username, action: following ? 'unfollow' : 'follow' }),
+        });
+        const d = await r.json();
+        followBtnEl.disabled = false;
+        if (r.ok) renderFollowBtn(followBtnEl, d.isFollowing);
+      });
+    }
+  }
+
+  function renderFollowBtn(el, isFollowing) {
+    el.dataset.state = isFollowing ? 'following' : 'not-following';
+    el.textContent = isFollowing ? 'Mengikuti' : 'Ikuti';
+    el.className = isFollowing ? 'btn-secondary' : '';
+    el.style.cssText = 'width:auto;padding:8px 20px';
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login/';
+  });
+
+  load();
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
