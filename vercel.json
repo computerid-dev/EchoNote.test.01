@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/api/register", "destination": "/api/auth?action=register" },
+    { "source": "/api/login", "destination": "/api/auth?action=login" },
+    { "source": "/api/logout", "destination": "/api/auth?action=logout" },
+    { "source": "/api/me", "destination": "/api/auth?action=me" },
+    { "source": "/api/status", "destination": "/api/auth?action=status" },
+
+    { "source": "/api/profile", "destination": "/api/account?action=profile" },
+    { "source": "/api/edit-profile", "destination": "/api/account?action=edit-profile" },
+    { "source": "/api/setup-profile", "destination": "/api/account?action=setup-profile" },
+    { "source": "/api/upload-avatar", "destination": "/api/account?action=upload-avatar" },
+
+    { "source": "/api/follow", "destination": "/api/social?action=follow" },
+    { "source": "/api/follow-status", "destination": "/api/social?action=follow-status" },
+
+    { "source": "/api/feed/list", "destination": "/api/feed?action=list" },
+    { "source": "/api/feed/create", "destination": "/api/feed?action=create" },
+    { "source": "/api/feed/like", "destination": "/api/feed?action=like" },
+    { "source": "/api/feed/comment", "destination": "/api/feed?action=comment" },
+    { "source": "/api/feed/comments", "destination": "/api/feed?action=comments" },
+
+    { "source": "/api/chat/list", "destination": "/api/chat?action=list" },
+    { "source": "/api/chat/id", "destination": "/api/chat?action=id" },
+    { "source": "/api/chat/send", "destination": "/api/chat?action=send" }
+  ]
+}
