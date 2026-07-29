@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menunggu Review — EchoNote</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/firebase-init.js"></script>
+</head>
+<body>
+<a href="/__trap" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" tabindex="-1" rel="nofollow">x</a>
+<div class="wrap">
+  <div class="card center-text">
+    <div class="brand" style="justify-content:center">
+      <div class="brand-mark">E</div>
+      <div class="brand-name">EchoNote</div>
+    </div>
+
+    <div id="pendingState">
+      <div class="spinner"></div>
+      <h1>Menunggu review admin</h1>
+      <p class="subtitle">Permintaanmu sedang diperiksa. Ini bukan proses otomatis — tekan tombol di bawah untuk cek status terbaru.</p>
+      <button id="refreshBtn">Refresh status</button>
+    </div>
+
+    <div id="rejectedState" style="display:none">
+      <h1>Permintaan ditolak</h1>
+      <p class="subtitle">Kamu bisa daftar ulang dari awal kapan saja.</p>
+      <a class="btn" href="/daftar/" style="display:block;text-decoration:none;box-sizing:border-box">Daftar ulang</a>
+    </div>
+
+    <div id="errorState" style="display:none">
+      <p class="alert alert-error">Data tidak ditemukan. Silakan daftar/masuk ulang.</p>
+      <p id="errorDetail" class="subtitle" style="display:none;font-size:12px;word-break:break-word"></p>
+      <a class="btn btn-secondary" href="/login/" style="display:block;text-decoration:none;box-sizing:border-box">Ke halaman masuk</a>
+    </div>
+  </div>
+</div>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const type = params.get('type');
+  const id = params.get('id');
+
+  const pendingState = document.getElementById('pendingState');
+  const rejectedState = document.getElementById('rejectedState');
+  const errorState = document.getElementById('errorState');
+  const errorDetail = document.getElementById('errorDetail');
+  const refreshBtn = document.getElementById('refreshBtn');
+
+  if (!type || !id) {
+    pendingState.style.display = 'none';
+    errorState.style.display = 'block';
+  }
+
+  function showErrorDetail(text) {
+    errorDetail.textContent = text;
+    errorDetail.style.display = 'block';
+  }
+
+  async function checkStatus() {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Mengecek...';
+    try {
+      const res = await fetch(`/api/status?type=${type}&id=${id}`);
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        pendingState.style.display = 'none';
+        errorState.style.display = 'block';
+        showErrorDetail(`Server merespons format tak terduga (status ${res.status}): ${raw.slice(0, 300) || '(kosong)'}`);
+        return;
+      }
+
+      if (!res.ok) {
+        pendingState.style.display = 'none';
+        errorState.style.display = 'block';
+        showErrorDetail(data.error || `Status ${res.status}`);
+        return;
+      }
+
+      if (data.status === 'pending') {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = 'Refresh status';
+        return;
+      }
+
+      if (data.status === 'rejected') {
+        localStorage.removeItem('echonote_pending');
+        pendingState.style.display = 'none';
+        rejectedState.style.display = 'block';
+        return;
+      }
+
+      if (data.status === 'accepted') {
+        localStorage.removeItem('echonote_pending');
+        window.location.href = data.redirect;
+      }
+    } catch (err) {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = 'Refresh status';
+      showErrorDetail('Gagal terhubung ke server (' + (err.message || 'network error') + ').');
+    }
+  }
+
+  refreshBtn.addEventListener('click', checkStatus);
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}</script>
+</body>
+</html>
